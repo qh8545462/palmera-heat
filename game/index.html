@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palmera Heat — an open-world crime game</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #10151c; }
+  body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2ede2; }
+  #app, #app canvas { width: 100%; height: 100%; display: block; }
+
+  /* ---------- HUD ---------- */
+  #hud { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #minimap {
+    position: absolute; top: 16px; left: 16px; width: 190px; height: 190px;
+    border: 3px solid rgba(240, 235, 220, 0.85); border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+  }
+  #money {
+    position: absolute; top: 18px; right: 22px; font-size: 30px; font-weight: 800;
+    color: #8fe388; text-shadow: 0 2px 6px rgba(0,0,0,0.7); letter-spacing: 0.5px;
+  }
+  #stars {
+    position: absolute; top: 56px; right: 22px; font-size: 25px; letter-spacing: 3px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+  }
+  #healthwrap {
+    position: absolute; left: 18px; bottom: 20px; width: 230px;
+  }
+  #healthlabel { font-size: 12px; letter-spacing: 2px; opacity: 0.85; margin-bottom: 4px; }
+  #healthbar {
+    height: 14px; border: 2px solid rgba(240,235,220,0.8); border-radius: 7px;
+    background: rgba(10, 14, 18, 0.55); overflow: hidden;
+  }
+  #healthfill { height: 100%; width: 100%; background: #7ec850; transition: width 0.2s; }
+  #bustedwrap {
+    display: none; position: absolute; left: 50%; bottom: 118px; transform: translateX(-50%);
+    width: 260px; text-align: center;
+  }
+  #bustedlabel { color: #ff6a5e; font-weight: 800; letter-spacing: 4px; font-size: 15px; text-shadow: 0 2px 5px #000; }
+  #bustedbar { height: 10px; border: 2px solid rgba(255,120,100,0.9); border-radius: 5px; background: rgba(20,0,0,0.5); overflow: hidden; }
+  #bustedfill { height: 100%; width: 0%; background: #e0483c; }
+  #objective-wrap {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    max-width: 46%; text-align: center; background: rgba(12, 16, 22, 0.55);
+    border: 1px solid rgba(255, 198, 60, 0.5); border-radius: 10px; padding: 8px 18px;
+  }
+  #objective { font-size: 17px; font-weight: 600; color: #ffe9b0; text-shadow: 0 1px 3px #000; }
+  #objtimer {
+    display: none; margin-left: 10px; font-size: 17px; font-weight: 800;
+    background: rgba(0,0,0,0.45); border-radius: 6px; padding: 1px 8px;
+  }
+  #prompt {
+    position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%);
+    font-size: 17px; font-weight: 600; color: #fff; background: rgba(12,16,22,0.6);
+    padding: 6px 14px; border-radius: 8px; opacity: 0; transition: opacity 0.15s;
+    text-shadow: 0 1px 3px #000; white-space: nowrap;
+  }
+  #dialogue {
+    display: none; position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%);
+    width: min(680px, 86%); background: rgba(10, 13, 18, 0.82);
+    border-left: 5px solid #ffc63c; border-radius: 8px; padding: 14px 20px 16px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+  #dlg-who { color: #ffc63c; font-weight: 800; font-size: 15px; letter-spacing: 1px; margin-bottom: 5px; }
+  #dlg-text { font-size: 18px; line-height: 1.45; }
+  #dlg-next { margin-top: 8px; font-size: 12px; opacity: 0.65; letter-spacing: 1px; }
+  #banner {
+    position: absolute; top: 24%; left: 50%; transform: translateX(-50%);
+    text-align: center; opacity: 0; transition: opacity 0.4s; width: 90%;
+  }
+  #banner-title {
+    font-size: 44px; font-weight: 900; letter-spacing: 3px; color: #ffd76a;
+    text-shadow: 0 3px 0 #a33c14, 0 6px 22px rgba(0,0,0,0.65);
+  }
+  #banner-sub { font-size: 19px; margin-top: 6px; color: #fff; text-shadow: 0 2px 6px #000; }
+  #toast {
+    position: absolute; top: 38%; left: 50%; transform: translateX(-50%);
+    font-size: 20px; font-weight: 700; color: #fff; background: rgba(12,16,22,0.62);
+    padding: 8px 20px; border-radius: 10px; opacity: 0; transition: opacity 0.3s;
+    text-shadow: 0 1px 3px #000; white-space: nowrap;
+  }
+  #crosshair {
+    display: none; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px;
+    margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255,255,255,0.9);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.35), 0 0 8px rgba(0,0,0,0.5);
+  }
+  #vignette {
+    position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s;
+    background: radial-gradient(ellipse at center, transparent 52%, rgba(190, 20, 10, 0.55) 100%);
+  }
+  #hint {
+    position: absolute; right: 18px; bottom: 16px; font-size: 12.5px; line-height: 1.7;
+    text-align: right; opacity: 0.75; text-shadow: 0 1px 3px #000;
+  }
+
+  /* ---------- full screens ---------- */
+  .screen {
+    position: fixed; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 10; text-align: center;
+  }
+  #startscreen {
+    background: linear-gradient(180deg, rgba(24, 12, 4, 0.42) 0%, rgba(64, 22, 8, 0.35) 45%, rgba(8, 10, 16, 0.78) 100%);
+  }
+  #game-title {
+    font-size: min(92px, 11vw); font-weight: 900; letter-spacing: 4px; line-height: 0.95;
+    background: linear-gradient(180deg, #ffe9a8 15%, #ffb03a 55%, #e2543e 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 0 rgba(90, 20, 5, 0.85)) drop-shadow(0 10px 26px rgba(0,0,0,0.6));
+    animation: titleGlow 3.2s ease-in-out infinite;
+  }
+  @keyframes titleGlow {
+    0%, 100% { filter: drop-shadow(0 4px 0 rgba(90,20,5,0.85)) drop-shadow(0 10px 26px rgba(0,0,0,0.6)); }
+    50% { filter: drop-shadow(0 4px 0 rgba(90,20,5,0.85)) drop-shadow(0 10px 34px rgba(255, 150, 50, 0.45)); }
+  }
+  #game-sub { margin-top: 10px; font-size: 19px; letter-spacing: 5px; color: #ffe9c9; text-shadow: 0 2px 8px #000; }
+  .menu-btn {
+    pointer-events: auto; cursor: pointer; margin-top: 16px; min-width: 300px;
+    padding: 13px 30px; font-size: 20px; font-weight: 800; letter-spacing: 2px;
+    color: #fff8ea; background: linear-gradient(180deg, #e2703a, #b23c17);
+    border: 2px solid #ffd9a0; border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  }
+  .menu-btn:hover { background: linear-gradient(180deg, #f4834c, #c9451d); }
+  #btn-new { margin-top: 44px; }
+  .controls {
+    margin-top: 40px; font-size: 14.5px; line-height: 1.85; color: #f5eedd;
+    background: rgba(10, 12, 16, 0.55); border-radius: 10px; padding: 12px 26px;
+    text-shadow: 0 1px 3px #000;
+  }
+  .controls b { color: #ffc63c; }
+  #pausescreen { background: rgba(8, 10, 14, 0.72); }
+  #pause-title { font-size: 52px; font-weight: 900; letter-spacing: 6px; color: #ffe9b0; text-shadow: 0 4px 16px #000; }
+  #endflash {
+    position: fixed; inset: 0; display: flex; flex-direction: column; z-index: 9;
+    align-items: center; justify-content: center; pointer-events: none;
+    opacity: 0; transition: opacity 0.35s; background: rgba(10, 6, 4, 0.35);
+  }
+  #end-title { font-size: 84px; font-weight: 900; letter-spacing: 10px; color: #ff5347; text-shadow: 0 5px 0 #5e0f08, 0 10px 30px #000; }
+  #end-sub { font-size: 20px; color: #fff; text-shadow: 0 2px 8px #000; margin-top: 8px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="money">$0</div>
+  <div id="stars">☆☆☆☆☆</div>
+  <div id="objective-wrap"><span id="objective"></span><span id="objtimer"></span></div>
+  <div id="healthwrap">
+    <div id="healthlabel">DANI</div>
+    <div id="healthbar"><div id="healthfill"></div></div>
+  </div>
+  <div id="bustedwrap">
+    <div id="bustedlabel">BUSTED</div>
+    <div id="bustedbar"><div id="bustedfill"></div></div>
+  </div>
+  <div id="prompt"></div>
+  <div id="dialogue">
+    <div id="dlg-who"></div>
+    <div id="dlg-text"></div>
+    <div id="dlg-next">E — continue</div>
+  </div>
+  <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+  <div id="toast"></div>
+  <div id="crosshair"></div>
+  <div id="vignette"></div>
+  <div id="hint">WASD move · F car · Shift sprint<br>Mouse aim · Click shoot · P pause · M mute</div>
+</div>
+
+<div id="endflash"><div id="end-title"></div><div id="end-sub"></div></div>
+
+<div id="startscreen" class="screen">
+  <div id="game-title">PALMERA<br>HEAT</div>
+  <div id="game-sub">PALMERA BAY · EST. TROUBLE</div>
+  <button id="btn-new" class="menu-btn">NEW GAME</button>
+  <button id="btn-continue" class="menu-btn">CONTINUE</button>
+  <div class="controls">
+    <b>WASD</b> move / drive &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Click</b> shoot<br>
+    <b>F</b> enter / exit car &nbsp;·&nbsp; <b>E</b> talk / advance &nbsp;·&nbsp; <b>Shift</b> sprint &nbsp;·&nbsp; <b>Space</b> handbrake<br>
+    <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; Lose the cops to cool your stars
+  </div>
+</div>
+
+<div id="pausescreen" class="screen">
+  <div id="pause-title">PAUSED</div>
+  <button id="btn-resume" class="menu-btn">RESUME</button>
+  <button id="btn-quit" class="menu-btn">QUIT TO TITLE</button>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
